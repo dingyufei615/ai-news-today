@@ -4,255 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSS 内容管理</title>
-    <style>
-        :root {
-            --primary-color: #007bff;
-            --secondary-color: #6c757d;
-            --background-color: #f8f9fa;
-            --surface-color: #ffffff;
-            --text-color: #212529;
-            --border-color: #dee2e6;
-            --danger-color: #dc3545;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .sidebar {
-            width: 320px;
-            background-color: var(--surface-color);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            flex-shrink: 0;
-        }
-        .sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .sidebar-header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-        }
-        .fetch-button {
-            display: block;
-            width: 100%;
-            padding: 0.75rem;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-align: center;
-            transition: background-color 0.2s;
-        }
-        .fetch-button:hover {
-            background-color: #0056b3;
-        }
-        .fetch-button:disabled {
-            background-color: var(--secondary-color);
-            cursor: not-allowed;
-        }
-        #article-list {
-            padding: 0;
-            margin: 0;
-            overflow-y: auto;
-            flex-grow: 1;
-        }
-        #article-list details {
-            border-bottom: 1px solid var(--border-color);
-        }
-        #article-list summary {
-            padding: 1rem;
-            padding-left: 2rem;
-            font-weight: bold;
-            cursor: pointer;
-            list-style: none; /* hide default arrow */
-            position: relative;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #article-list summary::-webkit-details-marker { display: none; }
-        #article-list summary:hover {
-            background-color: var(--background-color);
-        }
-        .push-date-button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 0.25rem 0.6rem;
-            font-size: 0.8rem;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            flex-shrink: 0;
-        }
-        .push-date-button:hover:not(:disabled) {
-            background-color: #218838;
-        }
-        .push-date-button:disabled {
-            background-color: var(--secondary-color);
-            cursor: not-allowed;
-        }
-        #article-list summary::before {
-            content: '▶';
-            position: absolute;
-            left: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%) rotate(0deg);
-            transition: transform 0.2s;
-            font-size: 0.9em;
-        }
-        #article-list details[open] > summary::before {
-            transform: translateY(-50%) rotate(90deg);
-        }
-        #article-list ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        #article-list li {
-            padding: 1rem;
-            padding-left: 2.5rem; /* Indent more than summary */
-            cursor: pointer;
-            border-top: 1px solid var(--border-color);
-            transition: background-color 0.2s;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        #article-list li:hover {
-            background-color: var(--background-color);
-        }
-        #article-list li.active {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        .article-title {
-            font-weight: normal; /* summary is bold, so title can be normal */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            flex-grow: 1;
-            margin-right: 1rem;
-        }
-        .delete-article-btn {
-            background-color: transparent;
-            border: none;
-            color: var(--danger-color);
-            cursor: pointer;
-            font-weight: bold;
-            padding: 0 0.5rem;
-            opacity: 0.6;
-            transition: opacity 0.2s;
-            font-size: 1rem;
-            line-height: 1;
-        }
-        .delete-article-btn:hover {
-            opacity: 1;
-        }
-        .main-content {
-            flex-grow: 1;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            height: calc(100vh - 4rem);
-        }
-        #editor-container {
-            display: none;
-            flex-direction: column;
-            height: 100%;
-        }
-        #article-editor {
-            width: 100%;
-            flex-grow: 1;
-            padding: 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            font-family: "Courier New", Courier, monospace;
-            font-size: 1rem;
-            line-height: 1.5;
-            resize: none;
-            box-sizing: border-box;
-        }
-        .editor-actions {
-            margin-top: 1rem;
-        }
-        .editor-actions button {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            margin-right: 0.5rem;
-            transition: opacity 0.2s;
-        }
-        .editor-actions button:hover {
-            opacity: 0.9;
-        }
-        #save-button {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        #delete-button {
-            background-color: var(--danger-color);
-            color: white;
-        }
-        #placeholder {
-            text-align: center;
-            color: var(--secondary-color);
-            margin: auto;
-        }
-        .fetch-container {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-        #rss-feed-select {
-            width: 100%;
-            padding: 0.5rem;
-            box-sizing: border-box;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-        #toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-        .toast {
-            background-color: #333;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            opacity: 0;
-            transition: opacity 0.4s, transform 0.4s ease-out;
-            transform: translateX(100%);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            font-size: 0.95rem;
-        }
-        .toast.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-        .toast.success {
-            background-color: #28a745;
-        }
-        .toast.error {
-            background-color: var(--danger-color);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
@@ -271,8 +23,8 @@
 
 <main class="main-content">
     <div id="placeholder">
-        <h2>欢迎使用RSS内容管理系统</h2>
-        <p>请从左侧选择一篇文章进行编辑，或获取最新新闻。</p>
+        <h2>欢迎使用RSS内容推送管理系统</h2>
+        <p>选中RSS源后获取最新内容，可编辑调整后进行企微推送</p>
     </div>
     <div id="editor-container">
         <textarea id="article-editor" placeholder="文章内容..."></textarea>
@@ -281,6 +33,9 @@
             <button id="delete-button">删除</button>
         </div>
     </div>
+    <footer class="main-footer">
+        <p>&copy; 2025 RSS 内容管理系统 by dyf</p>
+    </footer>
 </main>
 
 <script>
@@ -357,13 +112,25 @@
         }
 
         function renderArticleList() {
+            const openStates = new Map();
+            articleList.querySelectorAll('details').forEach(detail => {
+                const dateSpan = detail.querySelector('summary > span');
+                if (dateSpan) {
+                    openStates.set(dateSpan.textContent, detail.open);
+                }
+            });
+            const wasRenderedBefore = openStates.size > 0;
+
             articleList.innerHTML = '';
             const dates = Object.keys(articles); // Backend already sorts them
 
             dates.forEach((date, index) => {
                 const details = document.createElement('details');
-                // Open the first (most recent) date group by default
-                if (index === 0) {
+                
+                if (wasRenderedBefore) {
+                    details.open = openStates.get(date) || false;
+                } else if (index === 0) {
+                    // Open the first (most recent) date group by default on initial load
                     details.open = true;
                 }
 

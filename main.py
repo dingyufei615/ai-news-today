@@ -425,4 +425,4 @@ def push_to_wecom():
 if __name__ == "__main__":
     # 如果 'templates' 目录不存在，则创建它
     (BASE_DIR / 'templates').mkdir(exist_ok=True)
-    app.run(debug=True, port=5001)
+    app.run(host='0.0.0.0', port=5001)
