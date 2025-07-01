@@ -1,6 +1,5 @@
 .aider*
 .idea
 .env
-.env
-.env
-.env
+*.iml
+rss-content/

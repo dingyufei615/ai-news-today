@@ -51,7 +51,6 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
     storage_path = base_dir
     if feed_dir:
         storage_path = base_dir / feed_dir
-        storage_path.mkdir(exist_ok=True)
 
     if hasattr(entry, 'published_parsed') and entry.published_parsed:
         published_date = datetime.fromtimestamp(time.mktime(entry.published_parsed))
@@ -60,7 +59,7 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
         date_str = datetime.now().strftime("%Y-%m-%d")
 
     date_dir = storage_path / date_str
-    date_dir.mkdir(exist_ok=True)
+    date_dir.mkdir(parents=True, exist_ok=True)
 
     title = entry.get("title", "无标题")
 
@@ -107,6 +106,7 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
 
 app = Flask(__name__)
 BASE_DIR = Path(__file__).resolve().parent
+CONTENT_DIR = BASE_DIR / "rss-content"
 
 
 def get_article_path(filepath):
@@ -135,7 +135,7 @@ def list_articles():
         return jsonify({})
 
     feed_dir_name = sanitize_url_for_path(feed_url)
-    source_dir = BASE_DIR / feed_dir_name
+    source_dir = CONTENT_DIR / feed_dir_name
 
     if not source_dir.is_dir():
         return jsonify({})
@@ -246,7 +246,7 @@ def fetch_new_articles():
 
     count = 0
     for entry in feed.entries:
-        if save_news_item(entry, base_dir=BASE_DIR, feed_dir=feed_dir_name):
+        if save_news_item(entry, base_dir=CONTENT_DIR, feed_dir=feed_dir_name):
             count += 1
 
     return jsonify({"message": f"成功获取 {count} 个新新闻条目。"})
@@ -385,7 +385,7 @@ def push_to_wecom():
     if not push_date_str:
         abort(400, "请求中缺少 'date'。")
 
-    search_pattern = str(BASE_DIR / '**' / push_date_str / 'news_*.md')
+    search_pattern = str(CONTENT_DIR / '**' / push_date_str / 'news_*.md')
     md_files = sorted(glob.glob(search_pattern, recursive=True))
     if not md_files:
         return jsonify({"message": f"日期 {push_date_str} 没有可推送的新闻。"}), 404
