@@ -1,0 +1,4 @@
+feedparser
+Flask
+Markdown
+requests

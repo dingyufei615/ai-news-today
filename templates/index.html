@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RSS 内容管理</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --background-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --danger-color: #dc3545;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 320px;
+            background-color: var(--surface-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .fetch-button {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        .fetch-button:hover {
+            background-color: #0056b3;
+        }
+        .fetch-button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+        #article-list {
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        #article-list details {
+            border-bottom: 1px solid var(--border-color);
+        }
+        #article-list summary {
+            padding: 1rem;
+            padding-left: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            list-style: none; /* hide default arrow */
+            position: relative;
+        }
+        #article-list summary::-webkit-details-marker { display: none; }
+        #article-list summary:hover {
+            background-color: var(--background-color);
+        }
+        #article-list summary::before {
+            content: '▶';
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%) rotate(0deg);
+            transition: transform 0.2s;
+            font-size: 0.9em;
+        }
+        #article-list details[open] > summary::before {
+            transform: translateY(-50%) rotate(90deg);
+        }
+        #article-list ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #article-list li {
+            padding: 1rem;
+            padding-left: 2.5rem; /* Indent more than summary */
+            cursor: pointer;
+            border-top: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #article-list li:hover {
+            background-color: var(--background-color);
+        }
+        #article-list li.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .article-title {
+            font-weight: normal; /* summary is bold, so title can be normal */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex-grow: 1;
+            margin-right: 1rem;
+        }
+        .delete-article-btn {
+            background-color: transparent;
+            border: none;
+            color: var(--danger-color);
+            cursor: pointer;
+            font-weight: bold;
+            padding: 0 0.5rem;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            font-size: 1rem;
+            line-height: 1;
+        }
+        .delete-article-btn:hover {
+            opacity: 1;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 4rem);
+        }
+        #editor-container {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+        #article-editor {
+            width: 100%;
+            flex-grow: 1;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1rem;
+            line-height: 1.5;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .editor-actions {
+            margin-top: 1rem;
+        }
+        .editor-actions button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-right: 0.5rem;
+            transition: opacity 0.2s;
+        }
+        .editor-actions button:hover {
+            opacity: 0.9;
+        }
+        #save-button {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        #delete-button {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        #placeholder {
+            text-align: center;
+            color: var(--secondary-color);
+            margin: auto;
+        }
+        .fetch-container {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        #rss-feed-select {
+            width: 100%;
+            padding: 0.5rem;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .push-container {
+            padding: 1rem;
+            padding-top: 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .push-container input[type="date"] {
+            width: 100%;
+            padding: 0.5rem;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .push-button {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        .push-button:hover:not(:disabled) {
+            background-color: #218838;
+        }
+        .push-button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .toast {
+            background-color: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            opacity: 0;
+            transition: opacity 0.4s, transform 0.4s ease-out;
+            transform: translateX(100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 0.95rem;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast.success {
+            background-color: #28a745;
+        }
+        .toast.error {
+            background-color: var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1>文章列表</h1>
+    </div>
+    <div class="fetch-container">
+        <select id="rss-feed-select" title="选择RSS源"></select>
+        <button class="fetch-button" id="fetch-button">获取最新新闻</button>
+    </div>
+    <div class="push-container">
+        <input type="date" id="push-date" title="选择推送日期">
+        <button class="push-button" id="push-button">推送到企微</button>
+    </div>
+    <div id="article-list"></div>
+</aside>
+
+<div id="toast-container"></div>
+
+<main class="main-content">
+    <div id="placeholder">
+        <h2>欢迎使用RSS内容管理系统</h2>
+        <p>请从左侧选择一篇文章进行编辑，或获取最新新闻。</p>
+    </div>
+    <div id="editor-container">
+        <textarea id="article-editor" placeholder="文章内容..."></textarea>
+        <div class="editor-actions">
+            <button id="save-button">保存</button>
+            <button id="delete-button">删除</button>
+        </div>
+    </div>
+</main>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const articleList = document.getElementById('article-list');
+        const articleEditor = document.getElementById('article-editor');
+        const editorContainer = document.getElementById('editor-container');
+        const placeholder = document.getElementById('placeholder');
+        const saveButton = document.getElementById('save-button');
+        const deleteButton = document.getElementById('delete-button');
+        const fetchButton = document.getElementById('fetch-button');
+        const rssFeedSelect = document.getElementById('rss-feed-select');
+        const pushDateInput = document.getElementById('push-date');
+        const pushButton = document.getElementById('push-button');
+
+        let currentArticlePath = null;
+        let articles = {};
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 3000);
+        }
+
+        async function fetchArticles() {
+            const selectedFeed = rssFeedSelect.value;
+            let new_articles = {};
+
+            if (selectedFeed) {
+                try {
+                    const response = await fetch(`/api/articles?feed_url=${encodeURIComponent(selectedFeed)}`);
+                    if (!response.ok) throw new Error('获取文章列表失败');
+                    new_articles = await response.json();
+                } catch (error) {
+                    console.error('Error fetching articles:', error);
+                    showToast(error.message, 'error');
+                    new_articles = {};
+                }
+            }
+            
+            // 如果当前打开的文章不在新的文章列表中，则清空编辑器
+            if (currentArticlePath && !Object.values(new_articles).flat().some(a => a.path === currentArticlePath)) {
+                currentArticlePath = null;
+                editorContainer.style.display = 'none';
+                placeholder.style.display = 'block';
+                articleEditor.value = '';
+            }
+
+            articles = new_articles;
+            renderArticleList();
+        }
+
+        async function fetchRssFeeds() {
+            try {
+                const response = await fetch('/api/rss_feeds');
+                if (!response.ok) throw new Error('获取RSS源列表失败');
+                const feeds = await response.json();
+                rssFeedSelect.innerHTML = feeds.map(feed => `<option value="${feed}">${feed}</option>`).join('');
+                await fetchArticles(); // 加载源后，获取第一个源的文章
+            } catch (error) {
+                console.error('Error fetching RSS feeds:', error);
+                showToast(error.message, 'error');
+            }
+        }
+
+        function renderArticleList() {
+            articleList.innerHTML = '';
+            const dates = Object.keys(articles); // Backend already sorts them
+
+            dates.forEach((date, index) => {
+                const details = document.createElement('details');
+                // Open the first (most recent) date group by default
+                if (index === 0) {
+                    details.open = true;
+                }
+
+                const summary = document.createElement('summary');
+                summary.textContent = date;
+                details.appendChild(summary);
+
+                const ul = document.createElement('ul');
+                articles[date].forEach(article => {
+                    const li = document.createElement('li');
+                    li.dataset.path = article.path;
+                    
+                    const titleSpan = document.createElement('span');
+                    titleSpan.className = 'article-title';
+                    titleSpan.textContent = article.title;
+                    li.appendChild(titleSpan);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = '&times;'; // '×' symbol
+                    deleteBtn.className = 'delete-article-btn';
+                    deleteBtn.title = `删除文章: ${article.title}`;
+                    deleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        deleteArticleFromList(article.path, article.title);
+                    });
+                    li.appendChild(deleteBtn);
+
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        loadArticle(article.path);
+                    });
+                    ul.appendChild(li);
+                });
+                details.appendChild(ul);
+                articleList.appendChild(details);
+            });
+            updateActiveState();
+        }
+        
+        async function deleteArticleFromList(path, title) {
+            try {
+                const response = await fetch(`/api/article/${path}`, { method: 'DELETE' });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || '删除文章失败');
+                
+                showToast(result.message);
+
+                if (currentArticlePath === path) {
+                    currentArticlePath = null;
+                    editorContainer.style.display = 'none';
+                    placeholder.style.display = 'block';
+                    articleEditor.value = '';
+                }
+                
+                await fetchArticles();
+            } catch (error) {
+                console.error(`Error deleting article ${path}:`, error);
+                showToast(`删除失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadArticle(path) {
+            try {
+                const response = await fetch(`/api/article/${path}`);
+                if (!response.ok) throw new Error('加载文章失败');
+                const data = await response.json();
+                
+                placeholder.style.display = 'none';
+                editorContainer.style.display = 'flex';
+                articleEditor.value = data.raw;
+                currentArticlePath = path;
+                updateActiveState();
+
+            } catch (error) {
+                console.error(`Error loading article ${path}:`, error);
+                showToast(error.message, 'error');
+            }
+        }
+        
+        function updateActiveState() {
+             Array.from(articleList.querySelectorAll('li')).forEach(li => {
+                if (li.dataset.path === currentArticlePath) {
+                    li.classList.add('active');
+                    // Ensure the parent collapsible section is open
+                    if (li.closest('details')) {
+                      li.closest('details').open = true;
+                    }
+                } else {
+                    li.classList.remove('active');
+                }
+            });
+        }
+
+        saveButton.addEventListener('click', async () => {
+            if (!currentArticlePath) return;
+
+            try {
+                const response = await fetch(`/api/article/${currentArticlePath}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: articleEditor.value })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || '保存文章失败');
+                showToast(result.message);
+                // 刷新列表以更新可能已更改的标题
+                await fetchArticles();
+            } catch (error) {
+                console.error(`Error saving article ${currentArticlePath}:`, error);
+                showToast(`保存失败: ${error.message}`, 'error');
+            }
+        });
+
+        deleteButton.addEventListener('click', async () => {
+            if (!currentArticlePath) return;
+            const li = articleList.querySelector(`li[data-path="${currentArticlePath}"]`);
+            // The title might not be in the DOM if the list is very long and virtualized (not the case here)
+            // but it's good practice to handle it.
+            const title = li ? li.querySelector('.article-title').textContent : '当前打开的文章';
+            await deleteArticleFromList(currentArticlePath, title);
+        });
+
+        fetchButton.addEventListener('click', async () => {
+            const selectedFeed = rssFeedSelect.value;
+            if (!selectedFeed) {
+                alert('请选择一个RSS源。');
+                return;
+            }
+
+            fetchButton.textContent = '正在获取...';
+            fetchButton.disabled = true;
+            try {
+                const response = await fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: selectedFeed })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || '获取新闻失败');
+                showToast(result.message);
+                await fetchArticles();
+            } catch (error) {
+                console.error('Error fetching news:', error);
+                showToast(`获取新闻失败: ${error.message}`, 'error');
+            } finally {
+                fetchButton.textContent = '获取最新新闻';
+                fetchButton.disabled = false;
+            }
+        });
+
+        // --- WeCom Push Logic ---
+        function initializePushSection() {
+            const today = new Date().toISOString().split('T')[0];
+            pushDateInput.value = today;
+
+            pushButton.addEventListener('click', async () => {
+                const date = pushDateInput.value;
+                if (!date) {
+                    showToast('请选择一个日期。', 'error');
+                    return;
+                }
+
+                pushButton.textContent = '正在推送...';
+                pushButton.disabled = true;
+
+                try {
+                    const response = await fetch('/api/push_to_wecom', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ date: date })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) {
+                         // The error message is in result.message
+                         throw new Error(result.message || `HTTP error! status: ${response.status}`);
+                    }
+                    showToast(result.message);
+                } catch (error) {
+                    console.error('Error pushing news:', error);
+                    showToast(`推送失败: ${error.message}`, 'error');
+                } finally {
+                    pushButton.textContent = '推送到企微';
+                    pushButton.disabled = false;
+                }
+            });
+        }
+        
+        initializePushSection();
+        fetchRssFeeds();
+        rssFeedSelect.addEventListener('change', fetchArticles);
+    });
+</script>
+
+</body>
+</html>
