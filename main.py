@@ -396,7 +396,7 @@ def push_to_wecom():
 
     for md_file in md_files:
         try:
-            content_raw = md_file.read_text(encoding='utf-8')
+            content_raw = Path(md_file).read_text(encoding='utf-8')
             card_payload = build_news_notice_card(content_raw)
 
             success, message = send_to_wecom(card_payload)

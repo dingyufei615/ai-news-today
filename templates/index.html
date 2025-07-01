@@ -76,10 +76,31 @@
             cursor: pointer;
             list-style: none; /* hide default arrow */
             position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         #article-list summary::-webkit-details-marker { display: none; }
         #article-list summary:hover {
             background-color: var(--background-color);
+        }
+        .push-date-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+        .push-date-button:hover:not(:disabled) {
+            background-color: #218838;
+        }
+        .push-date-button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
         }
         #article-list summary::before {
             content: '▶';
@@ -203,40 +224,6 @@
             margin-bottom: 0.5rem;
             font-size: 0.9rem;
         }
-        .push-container {
-            padding: 1rem;
-            padding-top: 0;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .push-container input[type="date"] {
-            width: 100%;
-            padding: 0.5rem;
-            box-sizing: border-box;
-            border: 1px solid var(--border-color);
-            border-radius: 5px;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-        .push-button {
-            display: block;
-            width: 100%;
-            padding: 0.75rem;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            text-align: center;
-            transition: background-color 0.2s;
-        }
-        .push-button:hover:not(:disabled) {
-            background-color: #218838;
-        }
-        .push-button:disabled {
-            background-color: var(--secondary-color);
-            cursor: not-allowed;
-        }
         #toast-container {
             position: fixed;
             top: 20px;
@@ -277,10 +264,6 @@
         <select id="rss-feed-select" title="选择RSS源"></select>
         <button class="fetch-button" id="fetch-button">获取最新新闻</button>
     </div>
-    <div class="push-container">
-        <input type="date" id="push-date" title="选择推送日期">
-        <button class="push-button" id="push-button">推送到企微</button>
-    </div>
     <div id="article-list"></div>
 </aside>
 
@@ -310,8 +293,6 @@
         const deleteButton = document.getElementById('delete-button');
         const fetchButton = document.getElementById('fetch-button');
         const rssFeedSelect = document.getElementById('rss-feed-select');
-        const pushDateInput = document.getElementById('push-date');
-        const pushButton = document.getElementById('push-button');
 
         let currentArticlePath = null;
         let articles = {};
@@ -387,7 +368,22 @@
                 }
 
                 const summary = document.createElement('summary');
-                summary.textContent = date;
+                
+                const dateSpan = document.createElement('span');
+                dateSpan.textContent = date;
+                summary.appendChild(dateSpan);
+
+                const pushBtn = document.createElement('button');
+                pushBtn.className = 'push-date-button';
+                pushBtn.textContent = '推送本组';
+                pushBtn.dataset.date = date;
+                pushBtn.addEventListener('click', (e) => {
+                    e.preventDefault(); // prevent details from toggling
+                    e.stopPropagation();
+                    handlePush(date, pushBtn);
+                });
+                summary.appendChild(pushBtn);
+
                 details.appendChild(summary);
 
                 const ul = document.createElement('ul');
@@ -535,43 +531,36 @@
         });
 
         // --- WeCom Push Logic ---
-        function initializePushSection() {
-            const today = new Date().toISOString().split('T')[0];
-            pushDateInput.value = today;
+        async function handlePush(date, buttonElement) {
+            if (!date) {
+                showToast('日期无效。', 'error');
+                return;
+            }
 
-            pushButton.addEventListener('click', async () => {
-                const date = pushDateInput.value;
-                if (!date) {
-                    showToast('请选择一个日期。', 'error');
-                    return;
+            buttonElement.textContent = '推送中...';
+            buttonElement.disabled = true;
+
+            try {
+                const response = await fetch('/api/push_to_wecom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: date })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                     // The error message is in result.message
+                     throw new Error(result.message || `HTTP error! status: ${response.status}`);
                 }
-
-                pushButton.textContent = '正在推送...';
-                pushButton.disabled = true;
-
-                try {
-                    const response = await fetch('/api/push_to_wecom', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ date: date })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) {
-                         // The error message is in result.message
-                         throw new Error(result.message || `HTTP error! status: ${response.status}`);
-                    }
-                    showToast(result.message);
-                } catch (error) {
-                    console.error('Error pushing news:', error);
-                    showToast(`推送失败: ${error.message}`, 'error');
-                } finally {
-                    pushButton.textContent = '推送到企微';
-                    pushButton.disabled = false;
-                }
-            });
+                showToast(result.message);
+            } catch (error) {
+                console.error('Error pushing news:', error);
+                showToast(`推送失败: ${error.message}`, 'error');
+            } finally {
+                buttonElement.textContent = '推送本组';
+                buttonElement.disabled = false;
+            }
         }
         
-        initializePushSection();
         fetchRssFeeds();
         rssFeedSelect.addEventListener('change', fetchArticles);
     });
