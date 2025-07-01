@@ -63,12 +63,18 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
 
     title = entry.get("title", "无标题")
 
+    # 定义关键字并清洗标题
+    keyword_pattern = r'\[(大佬|佬友们|佬友|佬们|大佬们|佬)\]'
+    cleaned_title = re.sub(keyword_pattern, '', title)
+
     # 检查当天是否已存在同名文章
     for existing_file in date_dir.glob("*.md"):
         try:
             with open(existing_file, 'r', encoding='utf-8') as f:
                 first_line = f.readline().strip()
-                if first_line == f"# {title}":
+                cleaned_first_line = re.sub(keyword_pattern, '', first_line)
+
+                if cleaned_first_line == f"# {cleaned_title}":
                     print(f"新闻条目 '{title}' 在 {date_str} 已存在，跳过。")
                     return False
         except Exception as e:
@@ -84,14 +90,17 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
     else:
         news_content = entry.get("summary", "无摘要")
 
+    # 清洗内容中的关键字
+    cleaned_news_content = re.sub(keyword_pattern, '', news_content)
+
     # 使用Markdown格式构建内容
-    content = f"# {title}\n\n"
+    content = f"# {cleaned_title}\n\n"
     if 'published_date' in locals():
         content += f"**发布日期**: {published_date.strftime('%Y-%m-%d')}\n\n"
     else:
         content += "**发布日期**: N/A\n\n"
     content += "---\n\n"
-    content += f"{news_content}\n"
+    content += f"{cleaned_news_content}\n"
 
     try:
         filepath.write_text(content, encoding="utf-8")
