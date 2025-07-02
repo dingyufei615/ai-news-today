@@ -1,4 +1,6 @@
 feedparser
 Flask
+MarkupSafe
 Markdown
+markdown2
 requests

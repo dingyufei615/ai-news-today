@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 import feedparser
+import markdown2
 import requests
 from flask import Flask, jsonify, render_template, request, abort
+from markupsafe import Markup
 
 
 def sanitize_url_for_path(url):
@@ -136,6 +138,26 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/article/<path:filepath>')
+def view_article(filepath):
+    """提供一个公开页面来查看单篇文章。"""
+    # 使用与API相同的路径安全检查
+    path = get_article_path(filepath)
+    if not path.is_file():
+        abort(404, "文章未找到。")
+
+    content_md = path.read_text(encoding='utf-8')
+
+    # 从Markdown内容中提取标题
+    title_match = re.search(r'^#\s*(.*)', content_md, re.MULTILINE)
+    title = title_match.group(1).strip() if title_match else "文章"
+
+    # 将Markdown转换为HTML
+    html_content = markdown2.markdown(content_md, extras=["fenced-code-blocks", "tables"])
+
+    return render_template('article.html', title=title, content=Markup(html_content))
+
+
 @app.route('/api/articles', methods=['GET'])
 def list_articles():
     """列出指定RSS源下已保存的新闻文章，按日期分组。"""
@@ -261,99 +283,85 @@ def fetch_new_articles():
     return jsonify({"message": f"成功获取 {count} 个新新闻条目。"})
 
 
-def build_news_notice_card(markdown_content):
-    """从Markdown内容构建企业微信图文卡片消息。"""
-    # 1. 解析各部分
-    title_match = re.search(r'^#\s*(.*)', markdown_content)
-    title = title_match.group(1).strip() if title_match else "无标题"
-
-    date_match = re.search(r'\*\*发布日期\*\*:\s*(\d{4}-\d{2}-\d{2})', markdown_content)
-    published_date = date_match.group(1) if date_match else None
+def build_wecom_markdown_payload(markdown_content, article_path):
+    """从文件内容构建企业微信 markdown_v2 消息。"""
+    # WeCom的markdown_v2格式要求内容中不能直接包含HTML。
+    # 我们需要将文件中的HTML部分转换为markdown_v2支持的格式。
 
     parts = markdown_content.split('---\n\n', 1)
+    header = parts[0]
     body_html = parts[1] if len(parts) > 1 else ''
 
-    image_match = re.search(r'<img [^>]*src="([^"]+)"', body_html)
-    image_url = image_match.group(1) if image_match else None
+    # 将HTML粗略地转换为Markdown
+    body_md = re.sub(r'<a href="([^"]+)"[^>]*>(.*?)</a>', r'[\2](\1)', body_html, flags=re.DOTALL)
+    body_md = re.sub(r'<img [^>]*src="([^"]+)"[^>]*>', r'![](\1)', body_md)
+    body_md = re.sub(r'<(?:b|strong)>(.*?)</(?:b|strong)>', r'**\1**', body_md, flags=re.IGNORECASE | re.DOTALL)
+    body_md = re.sub(r'<(?:i|em)>(.*?)</(?:i|em)>', r'*\1*', body_md, flags=re.IGNORECASE | re.DOTALL)
+    body_md = re.sub(r'<li>(.*?)</li>', r'- \1\n', body_md, flags=re.IGNORECASE | re.DOTALL)
+    body_md = re.sub(r'<br\s*/?>', '\n', body_md, flags=re.IGNORECASE)
+    body_md = re.sub(r'</?(?:p|ul|ol|div|blockquote|h[1-6])[^>]*>', '\n', body_md, flags=re.IGNORECASE)
+    body_md = re.sub(r'<[^>]+>', '', body_md)
+    body_md = re.sub(r'\n{3,}', '\n\n', body_md).strip()
 
-    first_link_match = re.search(r'<a href="([^"]+)"', body_html)
-    card_action_url = first_link_match.group(1) if first_link_match else "https://work.weixin.qq.com"
+    # 组合最终的markdown
+    final_markdown = f"{header}\n\n---\n\n{body_md}"
+    encoded_markdown = final_markdown.encode('utf-8')
+    markdown_len = len(encoded_markdown)
 
-    desc_text = re.sub(r'<[^>]+>', '', body_html)
-    desc_text = re.sub(r'\s+', ' ', desc_text).strip()
+    app_base_url = os.environ.get("APP_BASE_URL", "").strip('/')
 
-    # 2. 构建卡片 payload
-    card_payload = {
-        "msgtype": "template_card",
-        "template_card": {
-            "card_type": "news_notice",
-            "source": {
-                "icon_url": "https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0",
-                "desc": "AI News Today"
-            },
-            "main_title": {
-                "title": title,
-                "desc": desc_text[:30]
-            },
-            "card_action": {
-                "type": 1,
-                "url": card_action_url
-            },
+    # 定义企业微信消息的最大长度和我们偏好的预览长度
+    WECOM_MAX_LEN = 4096
+    PREFERRED_LEN = 1024  # 超过此长度则考虑截断并添加链接，以改善阅读体验
+
+    # 检查是否应该截断并添加“阅读全文”链接
+    if app_base_url and markdown_len > PREFERRED_LEN:
+        read_more_link = f'\n\n[...点击查看全文]({app_base_url}/article/{darticle_path})'
+        link_len = len(read_more_link.encode('utf-8'))
+
+        # 确定内容部分的最大长度
+        # 如果原文已经超过了微信的绝对限制，则截断到绝对限制；否则，截断到我们的偏好长度。
+        if markdown_len > WECOM_MAX_LEN:
+            max_content_len = PREFERRED_LEN - link_len
+        else:
+            max_content_len = PREFERRED_LEN - link_len
+
+        if max_content_len < 0:
+            max_content_len = 0
+
+        truncated_encoded = encoded_markdown[:max_content_len]
+        final_markdown_text = truncated_encoded.decode('utf-8', 'ignore')
+
+        # 避免在截断时破坏 Markdown 结构，回退到最后一个换行符
+        # 仅当换行符存在于截断后字符串的后半部分时才这样做，以避免删除过多内容。
+        last_newline_pos = final_markdown_text.rfind('\n')
+        if last_newline_pos > len(final_markdown_text) * 0.5:
+            final_markdown_text = final_markdown_text[:last_newline_pos]
+
+        final_markdown = final_markdown_text.strip() + read_more_link
+
+    # 如果没有配置URL，但内容依然超长，则进行硬截断
+    elif markdown_len > WECOM_MAX_LEN:
+        suffix = '... (内容过长被截断)'
+        suffix_len = len(suffix.encode('utf-8'))
+        max_content_len = WECOM_MAX_LEN - suffix_len
+
+        truncated_encoded = encoded_markdown[:max_content_len]
+        final_markdown_text = truncated_encoded.decode('utf-8', 'ignore')
+
+        # 同样应用安全截断逻辑
+        last_newline_pos = final_markdown_text.rfind('\n')
+        if last_newline_pos > len(final_markdown_text) * 0.5:
+            final_markdown_text = final_markdown_text[:last_newline_pos]
+
+        final_markdown = final_markdown_text.strip() + suffix
+
+    return {
+        "msgtype": "markdown_v2",
+        "markdown_v2": {
+            "content": final_markdown
         }
     }
-
-    template_card = card_payload["template_card"]
-
-    # card_image 对 news_notice 模版卡片是必填项。
-    # 如果文章中没有图片，使用一个默认的占位图。
-    final_image_url = image_url if image_url else "https://wework.qpic.cn/wwpic/354393_4zpkKXd7SrGMvfg_1629280616/0"
-    template_card["card_image"] = {"url": final_image_url, "aspect_ratio": 1.3}
-
-    if published_date:
-        template_card["horizontal_content_list"] = [{"keyname": "发布日期", "value": published_date}]
-
-    if desc_text:
-        vertical_content_list = []
-        chunk_size = 112
-        remaining_text = desc_text.strip()
-
-        while remaining_text and len(vertical_content_list) < 4:
-            # 如果剩余文本不足以填满一个块，则全部作为最后一个块
-            if len(remaining_text) <= chunk_size:
-                chunk = remaining_text
-                remaining_text = ""
-            else:
-                # 在截断点（112字符）内寻找最后一个句号（中/英文）
-                slice_to_check = remaining_text[:chunk_size]
-                last_full_stop_pos = slice_to_check.rfind('。')
-                last_period_pos = slice_to_check.rfind('.')
-                split_pos = max(last_full_stop_pos, last_period_pos)
-
-                if split_pos != -1:
-                    # 在找到的最后一个句号后进行分割
-                    chunk = remaining_text[:split_pos + 1]
-                    remaining_text = remaining_text[split_pos + 1:].lstrip()
-                else:
-                    # 如果在112字符内没有句号，则进行硬截断
-                    chunk = remaining_text[:chunk_size]
-                    remaining_text = remaining_text[chunk_size:].lstrip()
-            
-            if chunk:  # 确保不添加空块
-                title = "内容摘要" if not vertical_content_list else " "
-                vertical_content_list.append({"title": title, "desc": chunk})
-
-        if vertical_content_list:
-            template_card["vertical_content_list"] = vertical_content_list
-
-    links = re.findall(r'<a href="([^"]+)"[^>]*>(.*?)</a>', body_html)
-    jump_list = []
-    for url, link_title in links[:3]:
-        if url and link_title.strip():
-            jump_list.append({"type": 1, "url": url, "title": link_title.strip()})
-    if jump_list:
-        template_card["jump_list"] = jump_list
-
-    return card_payload
 
 
 def send_to_wecom(payload):
@@ -388,16 +396,20 @@ def send_to_wecom(payload):
 
 @app.route('/api/push_to_wecom', methods=['POST'])
 def push_to_wecom():
-    """将指定日期的新闻逐条推送到企业微信。"""
+    """将指定日期和源的新闻逐条推送到企业微信。"""
     data = request.json
     push_date_str = data.get('date')
-    if not push_date_str:
-        abort(400, "请求中缺少 'date'。")
+    feed_url = data.get('feed_url')
 
-    search_pattern = str(CONTENT_DIR / '**' / push_date_str / 'news_*.md')
-    md_files = sorted(glob.glob(search_pattern, recursive=True))
+    if not push_date_str or not feed_url:
+        abort(400, "请求中缺少 'date' 或 'feed_url'。")
+
+    feed_dir_name = sanitize_url_for_path(feed_url)
+    search_pattern = str(CONTENT_DIR / feed_dir_name / push_date_str / 'news_*.md')
+    md_files = sorted(glob.glob(search_pattern))
+
     if not md_files:
-        return jsonify({"message": f"日期 {push_date_str} 没有可推送的新闻。"}), 404
+        return jsonify({"message": f"日期 {push_date_str} 没有来自该源的可推送新闻。"}), 404
 
     success_count = 0
     failure_count = 0
@@ -406,9 +418,10 @@ def push_to_wecom():
     for md_file in md_files:
         try:
             content_raw = Path(md_file).read_text(encoding='utf-8')
-            card_payload = build_news_notice_card(content_raw)
+            relative_path = os.path.relpath(md_file, BASE_DIR).replace('\\', '/')
+            payload = build_wecom_markdown_payload(content_raw, relative_path)
 
-            success, message = send_to_wecom(card_payload)
+            success, message = send_to_wecom(payload)
             if success:
                 success_count += 1
             else:

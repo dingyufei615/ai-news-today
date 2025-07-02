@@ -6,7 +6,7 @@
     <title>RSS 内容管理</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="app-layout">
 
 <aside class="sidebar">
     <div class="sidebar-header">
@@ -304,6 +304,12 @@
                 return;
             }
 
+            const selectedFeed = rssFeedSelect.value;
+            if (!selectedFeed) {
+                showToast('请先选择一个RSS源。', 'error');
+                return;
+            }
+
             buttonElement.textContent = '推送中...';
             buttonElement.disabled = true;
 
@@ -311,7 +317,7 @@
                 const response = await fetch('/api/push_to_wecom', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date: date })
+                    body: JSON.stringify({ date: date, feed_url: selectedFeed })
                 });
                 const result = await response.json();
                 if (!response.ok) {

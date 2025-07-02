@@ -12,6 +12,9 @@ body {
     margin: 0;
     background-color: var(--background-color);
     color: var(--text-color);
+}
+
+body.app-layout {
     display: flex;
     height: 100vh;
     overflow: hidden;

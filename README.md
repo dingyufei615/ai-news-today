@@ -43,11 +43,14 @@
       - 示例: `RSS_FEEDS=https://sanhua.himrr.com/daily-news/feed,https://www.ruanyifeng.com/blog/atom.xml`
     - `WECOM_ROBOT_WEBHOOK`: (必需) 企业微信机器人的 Webhook Key（仅 Key 部分，不是完整 URL）。
       - 示例: `WECOM_ROBOT_WEBHOOK=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+    - `APP_BASE_URL`: (可选) 应用部署后的公开访问地址。如果设置，过长的企业微信消息将包含“阅读全文”的链接。如果留空，消息将仅被截断。
+      - 示例: `APP_BASE_URL=http://your-domain.com:5001`
 
     **`.env` 文件示例:**
     ```
     RSS_FEEDS=https://sanhua.himrr.com/daily-news/feed
     WECOM_ROBOT_WEBHOOK=your-wecom-webhook-key
+    APP_BASE_URL=http://127.0.0.1:5001
     ```
     应用运行时会自动从项目根目录的 `.env` 文件加载这些变量。
 
@@ -88,6 +91,7 @@
           -v "$(pwd)/rss-content":/app/rss-content \
           -e RSS_FEEDS="https://sanhua.himrr.com/daily-news/feed" \
           -e WECOM_ROBOT_WEBHOOK="your-wecom-webhook-key" \
+          -e APP_BASE_URL="http://your-domain.com:5001" \
           --name rss-pusher-container \
           rss-pusher
         ```
