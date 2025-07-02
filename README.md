@@ -5,12 +5,23 @@
 
 一个轻量级的 Web 应用，用于从 RSS 源获取、管理内容，并将其推送到企业微信（WeCom）。
 
+后台：
+![img.png](static/image/img2.png)
+
+推送效果：
+![img.png](static/image/img4.png)![img.png](static/image/img3.png)
+
+查看全文效果：
+![img.png](static/image/img5.png)
+
+
 ## ✨ 功能特性
 
 -   从多个可配置的 RSS 源获取文章。
 -   将文章以 Markdown 格式保存在本地，按来源和日期进行组织。
 -   提供简洁的 Web 界面来查看、编辑、删除已保存的文章。
 -   支持将指定日期的文章批量推送到企业微信机器人。
+-   智能截断，避免推送消息过长，截断后附带原文访问url。
 -   支持 Docker 快速部署。
 
 ## 🛠️ 技术栈
