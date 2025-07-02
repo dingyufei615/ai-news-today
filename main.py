@@ -316,7 +316,7 @@ def build_wecom_markdown_payload(markdown_content, article_path):
 
     # 检查是否应该截断并添加“阅读全文”链接
     if app_base_url and markdown_len > PREFERRED_LEN:
-        read_more_link = f'\n\n[...点击查看全文]({app_base_url}/article/{darticle_path})'
+        read_more_link = f'\n\n[...点击查看全文]({app_base_url}/article/{article_path})'
         link_len = len(read_more_link.encode('utf-8'))
 
         # 确定内容部分的最大长度
