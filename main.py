@@ -11,6 +11,8 @@ import requests
 from flask import Flask, jsonify, render_template, request, abort
 from markupsafe import Markup
 
+# 定义关键字并清洗标题
+keyword_pattern = r'(大佬|佬友们|佬友|佬们|大佬们|佬)'
 
 def sanitize_url_for_path(url):
     """将URL消毒，用作目录名。"""
@@ -65,8 +67,6 @@ def save_news_item(entry, base_dir=Path("."), feed_dir=None):
 
     title = entry.get("title", "无标题")
 
-    # 定义关键字并清洗标题
-    keyword_pattern = r'(大佬|佬友们|佬友|佬们|大佬们|佬)'
     cleaned_title = re.sub(keyword_pattern, '', title)
 
     # 检查当天是否已存在同名文章
