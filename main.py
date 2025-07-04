@@ -31,7 +31,10 @@ def fetch_and_parse_feed(url):
     """
     print(f"正在从以下地址获取新闻: {url}")
     try:
-        response = requests.get(url, timeout=15)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, timeout=15, headers=headers)
         response.raise_for_status()
         # 使用 requests 获取的内容，而不是让 feedparser 自己去获取，以绕过 Content-Type 检查
         feed = feedparser.parse(response.content)
