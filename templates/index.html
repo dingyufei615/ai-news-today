@@ -310,6 +310,16 @@
                 return;
             }
 
+            const articleCount = articles[date] ? articles[date].length : 0;
+            if (articleCount === 0) {
+                showToast('该日期下没有文章可以推送。', 'info');
+                return;
+            }
+
+            if (!confirm(`确定要推送日期为 ${date} 的 ${articleCount} 篇文章吗？`)) {
+                return;
+            }
+
             buttonElement.textContent = '推送中...';
             buttonElement.disabled = true;
 
