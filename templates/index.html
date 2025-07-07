@@ -367,10 +367,6 @@
                 return;
             }
 
-            const articleCount = articles[date] ? articles[date].length : 0;
-            if (!confirm(`确定要删除日期为 ${date} 的所有 ${articleCount} 篇文章吗？此操作不可撤销。`)) {
-                return;
-            }
 
             buttonElement.textContent = '删除中...';
             buttonElement.disabled = true;
