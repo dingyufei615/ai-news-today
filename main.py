@@ -1,6 +1,7 @@
 import glob
 import os
 import re
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -395,6 +396,39 @@ def send_to_wecom(payload):
     except requests.exceptions.RequestException as e:
         print(f"请求企业微信时出错: {e}")
         return False, f"请求企业微信时出错: {e}"
+
+
+@app.route('/api/articles/by_date', methods=['DELETE'])
+def delete_articles_by_date():
+    """删除指定日期和源下的所有文章。"""
+    data = request.json
+    delete_date_str = data.get('date')
+    feed_url = data.get('feed_url')
+
+    if not delete_date_str or not feed_url:
+        abort(400, "请求中缺少 'date' 或 'feed_url'。")
+
+    # 验证日期格式以防止无效的目录名
+    try:
+        datetime.strptime(delete_date_str, '%Y-%m-%d')
+    except ValueError:
+        abort(400, "无效的日期格式，应为 YYYY-MM-DD。")
+
+    feed_dir_name = sanitize_url_for_path(feed_url)
+    date_dir_path = CONTENT_DIR / feed_dir_name / delete_date_str
+
+    # 安全检查：确保要删除的路径在 CONTENT_DIR 内
+    if not os.path.abspath(date_dir_path).startswith(os.path.abspath(CONTENT_DIR)):
+         abort(400, "无效的路径。")
+
+    if not date_dir_path.is_dir():
+        return jsonify({"message": f"日期 {delete_date_str} 的目录未找到。"}), 404
+
+    try:
+        shutil.rmtree(date_dir_path)
+        return jsonify({"message": f"成功删除日期为 {delete_date_str} 的所有文章。"})
+    except OSError as e:
+        abort(500, f"删除目录时出错: {e}")
 
 
 @app.route('/api/push_to_wecom', methods=['POST'])

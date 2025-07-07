@@ -151,6 +151,17 @@
                 });
                 summary.appendChild(pushBtn);
 
+                const deleteDateBtn = document.createElement('button');
+                deleteDateBtn.className = 'delete-date-button';
+                deleteDateBtn.textContent = '删除本组';
+                deleteDateBtn.dataset.date = date;
+                deleteDateBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDeleteDateGroup(date, deleteDateBtn);
+                });
+                summary.appendChild(deleteDateBtn);
+
                 details.appendChild(summary);
 
                 const ul = document.createElement('ul');
@@ -340,6 +351,55 @@
                 showToast(`推送失败: ${error.message}`, 'error');
             } finally {
                 buttonElement.textContent = '推送本组';
+                buttonElement.disabled = false;
+            }
+        }
+
+        async function handleDeleteDateGroup(date, buttonElement) {
+            if (!date) {
+                showToast('日期无效。', 'error');
+                return;
+            }
+
+            const selectedFeed = rssFeedSelect.value;
+            if (!selectedFeed) {
+                showToast('请先选择一个RSS源。', 'error');
+                return;
+            }
+
+            const articleCount = articles[date] ? articles[date].length : 0;
+            if (!confirm(`确定要删除日期为 ${date} 的所有 ${articleCount} 篇文章吗？此操作不可撤销。`)) {
+                return;
+            }
+
+            buttonElement.textContent = '删除中...';
+            buttonElement.disabled = true;
+
+            try {
+                const response = await fetch('/api/articles/by_date', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: date, feed_url: selectedFeed })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.message || `HTTP error! status: ${response.status}`);
+                }
+                showToast(result.message);
+                // 如果当前打开的文章在被删除的组中，则清空编辑器
+                if (currentArticlePath && currentArticlePath.includes(`/${date}/`)) {
+                    currentArticlePath = null;
+                    editorContainer.style.display = 'none';
+                    placeholder.style.display = 'block';
+                    articleEditor.value = '';
+                }
+                await fetchArticles(); // 刷新列表
+            } catch (error) {
+                console.error('Error deleting date group:', error);
+                showToast(`删除失败: ${error.message}`, 'error');
+            } finally {
+                // 重新渲染后按钮可能会消失，但为防止万一还是重置状态
+                buttonElement.textContent = '删除本组';
                 buttonElement.disabled = false;
             }
         }
