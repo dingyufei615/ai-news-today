@@ -37,7 +37,7 @@ def fetch_and_parse_feed(url):
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         }
-        response = requests.get(url, timeout=15, headers=headers)
+        response = requests.get(url, timeout=30, headers=headers)
         response.raise_for_status()
         # 使用 requests 获取的内容，而不是让 feedparser 自己去获取，以绕过 Content-Type 检查
         feed = feedparser.parse(response.content)
@@ -278,8 +278,11 @@ def fetch_new_articles():
     feed_dir_name = sanitize_url_for_path(feed_url)
     feed = fetch_and_parse_feed(feed_url)
 
-    if not feed or not feed.entries:
-        return jsonify({"message": "未找到新闻条目或获取源失败。"}), 404
+    if not feed:
+        return jsonify({"message": "获取源失败，可能是网络超时或URL无效。"}), 500
+
+    if not feed.entries:
+        return jsonify({"message": "源中未找到任何新闻条目。"}), 200
 
     count = 0
     for entry in feed.entries:
